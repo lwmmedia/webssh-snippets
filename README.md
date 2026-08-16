@@ -2,8 +2,7 @@
 
 Ready-to-use, mobile-first SSH snippets for the WebSSH client on iOS and macOS.
 
-<!-- TODO: replace <GIST_URL> with the public gist URL once the gist exists. -->
-WebSSH sync URL: <GIST_URL>
+WebSSH sync URL: https://gist.github.com/lwmmedia/48f1d13359fa395ba274955752461553
 
 ## Why mobile-first
 
