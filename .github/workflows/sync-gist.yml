@@ -1,0 +1,117 @@
+name: sync-gist
+
+# Never add pull_request here: fork pull requests must not reach GIST_TOKEN.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'snippets/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    name: guard
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Reject public IP addresses
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Allowed: unspecified, netmasks, RFC1918, loopback, link-local,
+          # CGNAT, multicast base and the RFC 5737 documentation ranges.
+          allow='(^|:)(0\.0\.0\.0|255\.255\.255\.[0-9]{1,3}|10\.|127\.|169\.254\.|100\.64\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.|192\.0\.2\.|198\.51\.100\.|203\.0\.113\.|224\.0\.0\.)'
+          hits="$(grep -rEon '\b([0-9]{1,3}\.){3}[0-9]{1,3}\b' snippets/ \
+                    | grep -vE "$allow" || true)"
+          if [ -n "$hits" ]; then
+            echo "Public IP addresses are not allowed in snippets/:"
+            echo "$hits"
+            echo "Use 192.0.2.10 or another RFC 5737 documentation address."
+            exit 1
+          fi
+          echo "ok: no public IP addresses"
+
+      - name: Reject .local and .lan hostnames
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -rEn '[A-Za-z0-9_-]+\.(local|lan)\b' snippets/; then
+            echo "Internal hostname suffixes are not allowed in snippets/."
+            echo "Use HOST or a name under example.com instead."
+            exit 1
+          fi
+          echo "ok: no .local or .lan hostnames"
+
+      - name: Reject DC= values other than example
+        shell: bash
+        run: |
+          set -euo pipefail
+          hits="$(grep -rEon 'DC=[A-Za-z0-9_-]+' snippets/ \
+                    | grep -viE ':DC=example$' || true)"
+          if [ -n "$hits" ]; then
+            echo "Only DC=example is allowed in snippets/:"
+            echo "$hits"
+            exit 1
+          fi
+          echo "ok: no real AD domain components"
+
+  sync:
+    name: sync
+    needs: guard
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check required configuration
+        shell: bash
+        env:
+          GIST_ID: ${{ vars.WEBSSH_GIST_ID }}
+          GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
+        run: |
+          set -euo pipefail
+          missing=0
+          if [ -z "${GIST_ID:-}" ]; then
+            echo "Missing repository variable WEBSSH_GIST_ID (the gist id)."
+            missing=1
+          fi
+          if [ -z "${GIST_TOKEN:-}" ]; then
+            echo "Missing repository secret GIST_TOKEN (token with gist scope)."
+            missing=1
+          fi
+          if [ "$missing" -ne 0 ]; then
+            echo "See the Install section of README.md."
+            exit 1
+          fi
+          echo "ok: gist id and token are configured"
+
+      - name: Push snippets to the gist
+        shell: bash
+        env:
+          GIST_ID: ${{ vars.WEBSSH_GIST_ID }}
+          GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
+        run: |
+          set -euo pipefail
+          git clone --depth 1 \
+            "https://x-access-token:${GIST_TOKEN}@gist.github.com/${GIST_ID}.git" \
+            gist
+          # Gists are flat: drop every existing top-level file, then re-copy.
+          find gist -maxdepth 1 -type f ! -name '.*' -delete
+          cp snippets/* gist/
+          cd gist
+          git config user.name 'github-actions[bot]'
+          git config user.email \
+            '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Gist already matches snippets/, nothing to commit."
+            exit 0
+          fi
+          git commit -m "Sync snippets from ${GITHUB_REPOSITORY}@${GITHUB_SHA}"
+          git push origin HEAD
+          echo "Gist updated."
