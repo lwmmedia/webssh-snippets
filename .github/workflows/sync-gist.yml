@@ -87,8 +87,10 @@ jobs:
             exit 1
           fi
           # Pasted values often carry a trailing newline or CR; strip it so the
-          # clone URL below cannot be silently malformed.
+          # clone URL below cannot be silently malformed. Neither a gist id nor
+          # a token ever contains whitespace, so this only removes paste noise.
           GIST_ID="$(printf '%s' "${GIST_ID:-}" | tr -d '[:space:]')"
+          GIST_TOKEN="$(printf '%s' "${GIST_TOKEN:-}" | tr -d '[:space:]')"
           missing=0
           if [ -z "$GIST_ID" ]; then
             echo "Missing repository variable WEBSSH_GIST_ID (the gist id)."
@@ -117,7 +119,10 @@ jobs:
           GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
         run: |
           set -euo pipefail
+          # Same trim as the check step: git refuses a credential URL whose
+          # password component contains a newline.
           GIST_ID="$(printf '%s' "${GIST_ID}" | tr -d '[:space:]')"
+          GIST_TOKEN="$(printf '%s' "${GIST_TOKEN}" | tr -d '[:space:]')"
           git clone --depth 1 \
             "https://x-access-token:${GIST_TOKEN}@gist.github.com/${GIST_ID}.git" \
             gist
