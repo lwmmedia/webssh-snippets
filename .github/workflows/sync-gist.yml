@@ -73,8 +73,19 @@ jobs:
         env:
           GIST_ID: ${{ vars.WEBSSH_GIST_ID }}
           GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
+          # Only whether a variable of that name exists, never its value.
+          TOKEN_IN_VARS: ${{ vars.GIST_TOKEN != '' }}
         run: |
           set -euo pipefail
+          # A token stored as a variable is kept and logged in clear text, so
+          # refuse to run and say so rather than reporting a missing secret.
+          if [ "${TOKEN_IN_VARS:-false}" = "true" ]; then
+            echo "GIST_TOKEN is defined as a repository VARIABLE."
+            echo "Variables are stored and logged in clear text, so a token"
+            echo "must never live there. Delete that variable, revoke the"
+            echo "token it holds, then add a replacement under Secrets."
+            exit 1
+          fi
           # Pasted values often carry a trailing newline or CR; strip it so the
           # clone URL below cannot be silently malformed.
           GIST_ID="$(printf '%s' "${GIST_ID:-}" | tr -d '[:space:]')"
