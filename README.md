@@ -51,8 +51,13 @@ sync with this repository.
    - a repository secret `GIST_TOKEN` holding a token with the `gist` scope.
 3. Push to `main`. The `sync-gist` workflow validates `snippets/` and mirrors
    its contents to the gist.
-4. In WebSSH, open **Settings -> Snippets -> Sync** and paste the gist URL
-   recorded above as the WebSSH sync URL.
+4. In WebSSH, open the snippet list and choose **Import from Gist**, then paste
+   the gist page URL recorded above, in the form
+   `https://gist.github.com/USER/GIST_ID`. The same field also accepts a bare
+   GitHub username, which lists that account's public gists.
+
+WebSSH imports the snippets into its own local list, so run the import again to
+pick up later changes published by the workflow.
 
 Snippets can also be used without WebSSH: each file is plain text meant to be
 pasted into an interactive shell.
