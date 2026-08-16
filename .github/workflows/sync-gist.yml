@@ -75,17 +75,26 @@ jobs:
           GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
         run: |
           set -euo pipefail
+          # Pasted values often carry a trailing newline or CR; strip it so the
+          # clone URL below cannot be silently malformed.
+          GIST_ID="$(printf '%s' "${GIST_ID:-}" | tr -d '[:space:]')"
           missing=0
-          if [ -z "${GIST_ID:-}" ]; then
+          if [ -z "$GIST_ID" ]; then
             echo "Missing repository variable WEBSSH_GIST_ID (the gist id)."
             missing=1
           fi
           if [ -z "${GIST_TOKEN:-}" ]; then
             echo "Missing repository secret GIST_TOKEN (token with gist scope)."
+            echo "It must be a repository secret, not an environment secret."
             missing=1
           fi
           if [ "$missing" -ne 0 ]; then
             echo "See the Install section of README.md."
+            exit 1
+          fi
+          if ! printf '%s' "$GIST_ID" | grep -qE '^[0-9a-fA-F]+$'; then
+            echo "WEBSSH_GIST_ID must be the gist id alone, not a full URL."
+            echo "Got: '$GIST_ID'"
             exit 1
           fi
           echo "ok: gist id and token are configured"
@@ -97,6 +106,7 @@ jobs:
           GIST_TOKEN: ${{ secrets.GIST_TOKEN }}
         run: |
           set -euo pipefail
+          GIST_ID="$(printf '%s' "${GIST_ID}" | tr -d '[:space:]')"
           git clone --depth 1 \
             "https://x-access-token:${GIST_TOKEN}@gist.github.com/${GIST_ID}.git" \
             gist
